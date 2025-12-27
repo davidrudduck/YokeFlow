@@ -167,7 +167,9 @@ export interface WebSocketMessage {
     | 'task_updated'  // Task status changed
     | 'test_updated'  // Test result changed
     | 'all_epics_complete'  // All epics finished
-    | 'project_complete';  // Project fully complete
+    | 'project_complete'  // Project fully complete
+    | 'prompt_improvement_complete'  // Prompt improvement analysis completed
+    | 'prompt_improvement_failed';  // Prompt improvement analysis failed
   progress?: Progress;
   session_id?: string;
   status?: SessionStatus;
@@ -186,6 +188,9 @@ export interface WebSocketMessage {
   tool_name?: string;  // For tool_use event
   tool_count?: number;  // For tool_use event (cumulative)
   timestamp?: string;  // For all events
+  // Prompt improvement event fields
+  analysis_id?: string;  // For prompt_improvement_complete/failed events
+  proposals_count?: number;  // For prompt_improvement_complete event
   // Real-time progress event data
   event?: {
     type: 'tool_use' | 'tool_result';
