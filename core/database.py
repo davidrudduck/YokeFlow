@@ -1289,7 +1289,6 @@ class TaskDatabase:
                 """
                 INSERT INTO session_quality_checks (
                     session_id,
-                    check_type,
                     check_version,
                     overall_rating,
                     playwright_count,
@@ -1301,10 +1300,10 @@ class TaskDatabase:
                     warnings,
                     metrics
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
                 RETURNING id
                 """,
-                session_id, 'quick', check_version, overall_rating,
+                session_id, check_version, overall_rating,
                 playwright_count, playwright_screenshot_count, total_tool_uses,
                 error_count, error_rate,
                 json.dumps(critical_issues), json.dumps(warnings), json.dumps(metrics)

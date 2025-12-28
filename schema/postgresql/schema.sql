@@ -263,15 +263,15 @@ CREATE INDEX idx_tests_passes ON tests(passes);
 CREATE INDEX idx_tests_category ON tests(category);
 
 -- -----------------------------------------------------------------------------
--- Session Quality Checks Table - Phase 1 & 2 Review System
+-- Session Quality Checks Table - Phase 1 Review System
 -- -----------------------------------------------------------------------------
 -- Note: The old 'reviews' table was removed in Migration 007 (never used)
+-- Note: Deep review fields removed after Migration 003 created session_deep_reviews
 CREATE TABLE session_quality_checks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     session_id UUID NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 
-    -- Check type and timing
-    check_type VARCHAR(50) NOT NULL,  -- 'quick', 'deep', 'final'
+    -- Timing and version
     check_version VARCHAR(20),
     created_at TIMESTAMPTZ DEFAULT NOW(),
 
@@ -292,14 +292,8 @@ CREATE TABLE session_quality_checks (
     -- Full metrics (from review_metrics.analyze_session_logs)
     metrics JSONB DEFAULT '{}',
 
-    -- Deep review results (Phase 2)
-    review_text TEXT,
-    review_summary JSONB,
-    prompt_improvements JSONB DEFAULT '[]',
-
     -- Constraints
-    CONSTRAINT valid_rating CHECK (overall_rating IS NULL OR (overall_rating >= 1 AND overall_rating <= 10)),
-    CONSTRAINT valid_check_type CHECK (check_type IN ('quick', 'deep', 'final'))
+    CONSTRAINT valid_rating CHECK (overall_rating IS NULL OR (overall_rating >= 1 AND overall_rating <= 10))
 );
 
 CREATE INDEX idx_quality_checks_session ON session_quality_checks(session_id);
@@ -309,10 +303,9 @@ CREATE INDEX idx_quality_checks_created ON session_quality_checks(created_at DES
 CREATE INDEX idx_quality_checks_critical_issues ON session_quality_checks USING GIN (critical_issues);
 CREATE INDEX idx_quality_checks_metrics ON session_quality_checks USING GIN (metrics);
 
-COMMENT ON TABLE session_quality_checks IS 'Automated quality check results for coding sessions. Supports quick metrics-only checks (Phase 1) and deep Claude-powered reviews (Phase 2).';
-COMMENT ON COLUMN session_quality_checks.check_type IS 'Type of quality check: quick (metrics only, $0), deep (Claude analysis, ~$0.10), final (comprehensive project review)';
+COMMENT ON TABLE session_quality_checks IS 'Quick quality check results for coding sessions (Phase 1 Review System). Zero-cost metrics analysis from session logs. Runs after every coding session. For deep reviews (Phase 2), see session_deep_reviews table.';
 COMMENT ON COLUMN session_quality_checks.playwright_count IS 'Total Playwright browser automation calls. Critical quality metric with r=0.98 correlation to session quality. 0 = critical issue, 1-9 = minimal, 10-49 = good, 50+ = excellent';
-COMMENT ON COLUMN session_quality_checks.overall_rating IS '1-10 quality score. Based on browser verification, error rate, and critical issues. NULL for checks that do not calculate ratings.';
+COMMENT ON COLUMN session_quality_checks.overall_rating IS '1-10 quality score. Based on browser verification, error rate, and critical issues.';
 
 -- -----------------------------------------------------------------------------
 -- Deep Review Results (Phase 2 Review System)
@@ -556,7 +549,7 @@ SELECT
     ROUND(AVG(q.error_rate) * 100, 1) as avg_error_rate_percent,
     ROUND(AVG(q.playwright_count), 1) as avg_playwright_calls_per_session
 FROM sessions s
-LEFT JOIN session_quality_checks q ON s.id = q.session_id AND q.check_type = 'quick'
+LEFT JOIN session_quality_checks q ON s.id = q.session_id
 LEFT JOIN projects p ON s.project_id = p.id
 WHERE s.type = 'coding'  -- Only coding sessions (excludes Session 0/initializer)
 GROUP BY s.project_id, p.name;
@@ -574,7 +567,6 @@ SELECT
     s.type as session_type,
     s.project_id,
     p.name as project_name,
-    q.check_type,
     q.overall_rating,
     q.playwright_count,
     q.error_rate,
@@ -608,7 +600,7 @@ SELECT
     ROUND(100.0 * SUM(CASE WHEN q.playwright_count > 0 THEN 1 ELSE 0 END) / COUNT(*), 1) as verification_rate_percent
 FROM sessions s
 JOIN projects p ON s.project_id = p.id
-LEFT JOIN session_quality_checks q ON s.id = q.session_id AND q.check_type = 'quick'
+LEFT JOIN session_quality_checks q ON s.id = q.session_id
 WHERE s.type = 'coding'  -- Only coding sessions
 GROUP BY s.project_id, p.name;
 
