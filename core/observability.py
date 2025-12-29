@@ -291,8 +291,34 @@ class SessionLogger:
                 })
 
             # Track Playwright browser verifications
+            # 1. Direct MCP Playwright server usage (non-Docker)
             elif tool_name.startswith("mcp__playwright__"):
                 self.browser_verifications += 1
+
+            # 2. Docker sandbox Playwright usage via bash_docker
+            elif tool_name == "mcp__task-manager__bash_docker":
+                # Check if this is a Playwright/browser verification command
+                command = tool_input.get("command", "").lower()
+
+                # Check for various browser testing patterns
+                browser_patterns = [
+                    'playwright',
+                    'npm test',
+                    'npm run test',
+                    'npx test',
+                    'node verify',
+                    'node.*test.*browser',
+                    'screenshot',
+                    '.test.',
+                    '.spec.',
+                    'e2e',
+                    'integration'
+                ]
+
+                for pattern in browser_patterns:
+                    if pattern in command:
+                        self.browser_verifications += 1
+                        break
 
     def log_thinking(self, thinking: str):
         """Log extended thinking blocks."""
