@@ -324,7 +324,7 @@ export default function PromptImprovementDashboard() {
               <div className="flex gap-2">
                 <button
                   onClick={triggerAnalysis}
-                  disabled={triggering || (projectStats && projectStats.sessions_with_reviews < configuredMinReviews)}
+                  disabled={triggering || (!!projectStats && projectStats.sessions_with_reviews < configuredMinReviews)}
                   className="px-6 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
                   title={
                     projectStats && projectStats.sessions_with_reviews < configuredMinReviews
