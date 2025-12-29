@@ -27,6 +27,24 @@ Build complete applications using Claude across multiple autonomous sessions. Pr
 
 **Originally forked from Anthropic's autonomous coding demo**, now evolved into YokeFlow with significant enhancements including API-first architecture, PostgreSQL database, agent orchestration, quality review system, and production-ready web interface.
 
+---
+
+## ⚠️ UPDATE REQUIRED: v1.1.0 → v1.1.1
+
+**If you're upgrading from v1.1.0, you need to apply database schema updates.**
+
+📋 **See [UPDATE-REQUIRED.md](UPDATE-REQUIRED.md) for detailed instructions.**
+
+**Quick update (2 commands):**
+```bash
+docker exec -i yokeflow_postgres psql -U agent -d yokeflow < schema/postgresql/add_metadata_to_prompt_proposals.sql
+docker exec -i yokeflow_postgres psql -U agent -d yokeflow < schema/postgresql/cleanup_session_quality_checks.sql
+```
+
+**Fresh installation?** No action needed - the main schema already includes these updates.
+
+---
+
 ## Upgrading from v1.0.0
 
 **Important:** Version 1.1.0 includes database schema changes that are not backward compatible. If you are upgrading from v1.0.0:
