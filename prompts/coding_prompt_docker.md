@@ -16,7 +16,14 @@
 - ❌ WRONG: `verify_task.js` with `require()` → Error: require not defined
 - ✅ CORRECT: `verify_task.cjs` with `require()` → Works!
 
-**3. Volume mount sync is INSTANT:**
+**3. Platform differences (host vs container):**
+- ⚠️ Container is Linux, host might be macOS/Windows
+- ❌ NEVER delete package-lock.json → causes platform mismatch errors
+- ✅ Use `npm ci` for clean installs (respects lockfile)
+- ✅ Use `npm install --package-lock-only` to update lockfile without installing
+- If you see "Unsupported platform for @rollup/rollup-darwin" → lockfile issue
+
+**4. Volume mount sync is INSTANT:**
 - Write tool creates file on host → appears in container immediately
 - No need to "wait for sync" or check with ls
 - Trust the volume mount - it works!
@@ -176,10 +183,20 @@ Edit({
 - ❌ DO NOT use: base64 encoding, python scripts, or other workarounds
 - ✅ ALWAYS use Write tool for creating files with multi-line content
 
-**Example - Running Commands:**
+**NPM Commands - Platform Awareness:**
 ```bash
-# Install packages
+# ✅ CORRECT - Clean install from lockfile
+mcp__task-manager__bash_docker({ command: "npm ci" })
+
+# ✅ CORRECT - Add new package (updates lockfile properly)
 mcp__task-manager__bash_docker({ command: "npm install express" })
+
+# ❌ WRONG - Don't delete lockfile (causes platform errors)
+mcp__task-manager__bash_docker({ command: "rm package-lock.json && npm install" })
+```
+
+**Example - Other Commands:**
+```bash
 
 # Run migrations (using subshell for directory change)
 mcp__task-manager__bash_docker({ command: "(cd server && node migrate.js up)" })
@@ -341,7 +358,32 @@ Write({
 })
 ```
 
-### Mistake 4: Checking for volume sync
+### Mistake 4: Deleting package-lock.json (causes platform errors!)
+
+```bash
+# ❌ WRONG - Deleting lockfile causes platform mismatch
+bash_docker({ command: "rm -f package-lock.json && npm install" })
+# Error: "Unsupported platform for @rollup/rollup-darwin-arm64"
+# Reason: Host created lockfile for macOS, container needs Linux versions
+
+# ❌ WRONG - Force installing ignores platform requirements
+bash_docker({ command: "npm install --force" })
+# Installs wrong binaries that won't work in container
+```
+
+```javascript
+// ✅ CORRECT - Use npm ci for clean installs
+bash_docker({ command: "npm ci" })  // Respects lockfile, installs correct versions
+
+// ✅ CORRECT - Update dependencies properly
+bash_docker({ command: "npm install new-package" })  // Adds to existing lockfile
+
+// ✅ CORRECT - If lockfile is genuinely broken
+bash_docker({ command: "npm install --package-lock-only" })  // Regenerates lockfile
+bash_docker({ command: "npm ci" })  // Then clean install
+```
+
+### Mistake 5: Checking for volume sync
 
 ```bash
 # ❌ UNNECESSARY - Volume sync is instant
