@@ -416,8 +416,8 @@ bash_docker({ command: "npm install" })  // File is already there!
 # First, check if server files exist
 mcp__task-manager__bash_docker({ command: "test -f server/index.js && echo 'Backend exists' || echo 'Backend not created yet'" })
 
-# If servers exist, start them
-mcp__task-manager__bash_docker({ command: "test -f server/index.js && (chmod +x init.sh && timeout 30 ./init.sh &) || echo 'Skipping server start - not created yet'" })
+# If servers exist, start them (without timeout - servers need to keep running!)
+mcp__task-manager__bash_docker({ command: "test -f server/index.js && (chmod +x init.sh && ./init.sh &) || echo 'Skipping server start - not created yet'" })
 
 # If init.sh was run, wait for servers with health check
 mcp__task-manager__bash_docker({
@@ -426,6 +426,7 @@ mcp__task-manager__bash_docker({
 ```
 
 **Note:** In early sessions, servers may not exist yet. That's normal - create them first, then start them.
+**Important:** Do NOT use `timeout` with init.sh - it will kill your servers after the timeout expires!
 
 ### No Cleanup Needed at Session End
 
@@ -601,9 +602,9 @@ curl -s http://localhost:5173 > /dev/null 2>&1 && echo "Frontend running" || ech
 # First check if server files exist
 mcp__task-manager__bash_docker({ command: "test -f server/index.js && echo '✅ Server files exist' || echo '⚠️ Server not created yet'" })
 
-# If servers exist AND not running, start them
+# If servers exist AND not running, start them (no timeout!)
 mcp__task-manager__bash_docker({
-  command: "if [ -f server/index.js ]; then curl -s http://localhost:3001/health > /dev/null 2>&1 || (chmod +x init.sh && timeout 30 ./init.sh &); else echo 'Skipping - server not created'; fi"
+  command: "if [ -f server/index.js ]; then curl -s http://localhost:3001/health > /dev/null 2>&1 || (chmod +x init.sh && ./init.sh &); else echo 'Skipping - server not created'; fi"
 })
 
 # Wait for servers if they were started
@@ -613,7 +614,7 @@ mcp__task-manager__bash_docker({
 ```
 
 **If servers don't exist:** Continue with task implementation - you'll create them!
-**If init.sh hangs:** It has a 30-second timeout to prevent blocking
+**Note:** init.sh runs in background (&) so it won't block your session
 
 **NEVER navigate to http://localhost:5173 with Playwright until health check passes!**
 
