@@ -145,7 +145,7 @@ def analyze_session_logs(jsonl_path: Path) -> Dict[str, Any]:
                                     'desc': f"Started task {task_id}"
                                 })
 
-                        # Track browser verification
+                        # Track browser verification - MCP Playwright (local mode)
                         elif tool_name.startswith('mcp__playwright__'):
                             if current_task and current_task in task_timeline:
                                 task_timeline[current_task]['browser_verifications'].append({
@@ -157,6 +157,48 @@ def analyze_session_logs(jsonl_path: Path) -> Dict[str, Any]:
                                 'tool': tool_name,
                                 'task': current_task
                             })
+
+                        # Track browser verification - Docker sandbox mode
+                        elif tool_name == 'mcp__task-manager__bash_docker':
+                            # Check if this is a browser verification command
+                            command = params.get('command', '').lower()
+
+                            # Detect verification scripts and browser tests
+                            is_browser_test = False
+                            browser_tool_type = None
+
+                            # Verification scripts (highest confidence - always have screenshots)
+                            if any(pattern in command for pattern in ['verify_task_', 'verify_']) and \
+                               any(ext in command for ext in ['.cjs', '.js', '.mjs', 'node ']):
+                                is_browser_test = True
+                                browser_tool_type = 'docker_browser_screenshot'
+                            # Direct screenshot commands
+                            elif 'screenshot' in command:
+                                is_browser_test = True
+                                browser_tool_type = 'docker_browser_screenshot'
+                            # Navigation commands
+                            elif 'navigate' in command or 'goto' in command:
+                                is_browser_test = True
+                                browser_tool_type = 'docker_browser_navigate'
+                            # Playwright or browser test commands
+                            elif any(pattern in command for pattern in [
+                                'playwright', 'chromium', 'browser',
+                                'npm test', 'npm run test', '.test.', '.spec.'
+                            ]):
+                                is_browser_test = True
+                                browser_tool_type = 'docker_browser_test'
+
+                            if is_browser_test and browser_tool_type:
+                                if current_task and current_task in task_timeline:
+                                    task_timeline[current_task]['browser_verifications'].append({
+                                        'time': timestamp,
+                                        'tool': browser_tool_type
+                                    })
+                                browser_events.append({
+                                    'time': timestamp,
+                                    'tool': browser_tool_type,
+                                    'task': current_task
+                                })
 
                         # Track test marking
                         elif tool_name == 'mcp__task-manager__update_test_result':

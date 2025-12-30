@@ -112,6 +112,13 @@ def analyze_session_logs(jsonl_path: Path) -> Dict[str, Any]:
                             if 'screenshot' in command_lower:
                                 is_playwright = True
                                 indicator_found = 'screenshot'  # This will make it detectable for screenshot count
+                            # Verification scripts (these ALWAYS take screenshots)
+                            elif any(pattern in command_lower for pattern in ['verify_task_', 'verify_', 'verification']) and \
+                                 any(ext in command_lower for ext in ['.cjs', '.js', '.mjs', 'node ']):
+                                is_playwright = True
+                                indicator_found = 'verification_script'
+                                # Also add a screenshot indicator since these scripts always screenshot
+                                playwright_tools.append("bash_docker_screenshot")
                             # Direct Playwright commands
                             elif 'playwright' in command_lower or 'pw ' in command_lower:
                                 is_playwright = True
@@ -152,8 +159,8 @@ def analyze_session_logs(jsonl_path: Path) -> Dict[str, Any]:
     error_rate = error_count / total_tool_uses if total_tool_uses > 0 else 0
 
     playwright_count = len(playwright_tools)
-    # Count screenshots from both MCP and Docker commands
-    playwright_screenshot_count = sum(1 for t in playwright_tools if 'screenshot' in t.lower())
+    # Count screenshots from both MCP and Docker commands (including verification scripts)
+    playwright_screenshot_count = sum(1 for t in playwright_tools if any(x in t.lower() for x in ['screenshot', 'verification_script', 'verify']))
     # Count navigation from both MCP and Docker commands
     playwright_navigate_count = sum(1 for t in playwright_tools if 'navigate' in t.lower() or 'browser' in t.lower())
 
