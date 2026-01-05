@@ -73,7 +73,12 @@ from core.database_connection import DatabaseManager, is_postgresql_configured, 
 from core.config import Config
 from core.reset import reset_project
 from api.prompt_improvements_routes import router as prompt_improvements_router
-from core.structured_logging import get_logger, set_request_id, clear_context
+from core.structured_logging import (
+    get_logger,
+    set_request_id,
+    clear_context,
+    setup_structured_logging
+)
 from core.errors import YokeFlowError, DatabaseError, ValidationError
 
 # Use structured logging
@@ -153,15 +158,20 @@ async def orchestrator_event_callback(project_id: UUID, event_type: str, data: D
 
 orchestrator = AgentOrchestrator(verbose=False, event_callback=orchestrator_event_callback)
 
-# Configure logging for the application
-# This ensures logger.info() calls from all modules are visible
-# Read log level from .env file (defaults to ERROR if not set)
-log_level_str = os.getenv('LOG_LEVEL', 'ERROR').upper()
-log_level = getattr(logging, log_level_str, logging.ERROR)
-logging.basicConfig(
-    level=log_level,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+# Configure structured logging for the application
+# Read log level from .env file (defaults to INFO if not set)
+log_level_str = os.getenv('LOG_LEVEL', 'INFO').upper()
+log_format = os.getenv('LOG_FORMAT', 'dev')  # 'dev' or 'json'
+
+# Create logs directory
+logs_dir = Path("logs")
+logs_dir.mkdir(exist_ok=True)
+
+# Initialize structured logging
+setup_structured_logging(
+    level=log_level_str,
+    format_type=log_format,
+    log_file=logs_dir / "yokeflow.log"
 )
 
 @asynccontextmanager

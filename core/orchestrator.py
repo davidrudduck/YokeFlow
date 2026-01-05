@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Callable, Awaitable, TYPE_CHECKING
 from datetime import datetime
 from uuid import UUID
-import logging
+import os
 
 import asyncpg
 
@@ -30,6 +30,7 @@ from core.client import create_client
 from core.database_connection import get_db, DatabaseManager, is_postgresql_configured
 from core.orchestrator_models import SessionStatus, SessionType, SessionInfo
 from core.quality_integration import QualityIntegration
+from core.structured_logging import get_logger, setup_structured_logging
 
 if TYPE_CHECKING:
     from core.database import TaskDatabase
@@ -44,7 +45,19 @@ from core.config import Config
 from core.sandbox_manager import SandboxManager
 from core.sandbox_hooks import set_active_sandbox, clear_active_sandbox
 
-logger = logging.getLogger(__name__)
+# Initialize structured logging if not already done (for CLI usage)
+if not any(isinstance(h.formatter, type(None)) for h in get_logger(__name__).handlers):
+    log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+    log_format = os.getenv('LOG_FORMAT', 'dev')
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    setup_structured_logging(
+        level=log_level,
+        format_type=log_format,
+        log_file=logs_dir / "yokeflow.log"
+    )
+
+logger = get_logger(__name__)
 
 # Re-export models for backward compatibility
 __all__ = ['AgentOrchestrator', 'SessionInfo', 'SessionStatus', 'SessionType']
