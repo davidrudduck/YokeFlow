@@ -20,6 +20,7 @@ import hashlib
 import logging
 
 from core.config import Config
+from core.database_retry import with_retry, RetryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,20 @@ class TaskDatabase:
         self.connection_url = connection_url
         self.pool: Optional[asyncpg.Pool] = None
 
+    @with_retry(RetryConfig(max_retries=5, base_delay=2.0, max_delay=60.0))
     async def connect(self, min_size: int = 10, max_size: int = 20):
         """
-        Create connection pool to PostgreSQL.
+        Create connection pool to PostgreSQL with retry logic.
+
+        Uses exponential backoff to handle transient connection failures.
+        Will retry up to 5 times with delays up to 60 seconds.
 
         Args:
             min_size: Minimum number of connections in pool
             max_size: Maximum number of connections in pool
+
+        Raises:
+            asyncpg.PostgresError: If connection fails after all retries
         """
         self.pool = await asyncpg.create_pool(
             self.connection_url,
@@ -67,16 +75,38 @@ class TaskDatabase:
 
     @asynccontextmanager
     async def acquire(self):
-        """Acquire a connection from the pool."""
-        async with self.pool.acquire() as conn:
+        """
+        Acquire a connection from the pool with retry logic.
+
+        Automatically retries on transient connection failures.
+        """
+        @with_retry(RetryConfig(max_retries=3, base_delay=1.0))
+        async def _acquire_with_retry():
+            return await self.pool.acquire()
+
+        conn = await _acquire_with_retry()
+        try:
             yield conn
+        finally:
+            await self.pool.release(conn)
 
     @asynccontextmanager
     async def transaction(self):
-        """Create a transaction context."""
-        async with self.pool.acquire() as conn:
+        """
+        Create a transaction context with retry logic.
+
+        Automatically retries on transient transaction failures.
+        """
+        @with_retry(RetryConfig(max_retries=3, base_delay=1.0))
+        async def _acquire_with_retry():
+            return await self.pool.acquire()
+
+        conn = await _acquire_with_retry()
+        try:
             async with conn.transaction():
                 yield conn
+        finally:
+            await self.pool.release(conn)
 
     # =========================================================================
     # Project Operations
