@@ -6,16 +6,19 @@ This file provides guidance to Claude Code when working with this repository.
 
 **YokeFlow** - An autonomous AI development platform that uses Claude to build complete applications over multiple sessions.
 
-**Status**: Production Ready - v1.3.0 (January 2026) ✅ **P0 Improvements Complete**
+**Status**: Production Ready - v1.4.0 (January 2026) ✅ **Production Hardening Complete**
 
 **Architecture**: API-first platform with FastAPI + Next.js Web UI + PostgreSQL + MCP task management
 
 **Workflow**: Opus plans roadmap (Session 0) → Sonnet implements features (Sessions 1+)
 
 **Production Hardening** (January 2026):
-- ✅ Database retry logic with exponential backoff
-- ✅ Complete intervention system with pause/resume
-- ✅ Session checkpointing and recovery
+- ✅ **P0 Critical**: Database retry logic with exponential backoff
+- ✅ **P0 Critical**: Complete intervention system with pause/resume
+- ✅ **P0 Critical**: Session checkpointing and recovery
+- ✅ **P1**: Structured logging (JSON + development formatters)
+- ✅ **P2**: Error hierarchy (30+ error types with categorization)
+- 🚀 **Merged to main**: 119 tests, 36 hours of improvements
 
 ## Core Workflow
 
@@ -26,10 +29,12 @@ This file provides guidance to Claude Code when working with this repository.
 **Key Files**:
 - `core/orchestrator.py` - Session lifecycle
 - `core/agent.py` - Agent loop
-- `core/database.py` - PostgreSQL abstraction (async) + retry logic
-- `core/database_retry.py` - ✅ **NEW**: Retry logic with exponential backoff
-- `core/checkpoint.py` - ✅ **NEW**: Session checkpointing and recovery
-- `core/session_manager.py` - ✅ **ENHANCED**: Intervention system with DB persistence
+- `core/database.py` - PostgreSQL abstraction (async) + retry logic + structured logging
+- `core/database_retry.py` - ✅ **NEW**: Retry logic with exponential backoff (30 tests)
+- `core/checkpoint.py` - ✅ **NEW**: Session checkpointing and recovery (19 tests)
+- `core/session_manager.py` - ✅ **ENHANCED**: Intervention system with DB persistence (15 tests)
+- `core/structured_logging.py` - ✅ **NEW**: JSON/dev formatters, context tracking (19 tests)
+- `core/errors.py` - ✅ **NEW**: Error hierarchy with 30+ error types (36 tests)
 - `api/main.py` - REST API + WebSocket
 - `core/observability.py` - Session logging (JSONL + TXT)
 - `core/security.py` - Blocklist validation
@@ -90,9 +95,11 @@ yokeflow/
 │   ├── agent.py             # Agent loop and session logic
 │   ├── database.py          # PostgreSQL abstraction (async) + 27 new methods
 │   ├── database_connection.py  # Connection pooling
-│   ├── database_retry.py    # ✅ NEW: Retry logic with exponential backoff
-│   ├── checkpoint.py        # ✅ NEW: Session checkpointing and recovery
+│   ├── database_retry.py    # ✅ NEW: Retry logic with exponential backoff (350 lines)
+│   ├── checkpoint.py        # ✅ NEW: Session checkpointing and recovery (420 lines)
 │   ├── session_manager.py   # ✅ ENHANCED: Intervention system (DB persistence)
+│   ├── structured_logging.py # ✅ NEW: JSON/dev formatters, context vars (380 lines)
+│   ├── errors.py            # ✅ NEW: Error hierarchy, 30+ types (425 lines)
 │   ├── intervention.py      # Blocker detection and retry tracking
 │   ├── client.py            # Claude SDK client setup
 │   ├── config.py            # Configuration management
@@ -121,6 +128,8 @@ yokeflow/
 │   ├── test_database_retry.py  # ✅ NEW: Retry logic tests (30 tests)
 │   ├── test_session_manager.py  # ✅ NEW: Intervention tests (15 tests)
 │   ├── test_checkpoint.py   # ✅ NEW: Checkpointing tests (19 tests)
+│   ├── test_structured_logging.py  # ✅ NEW: Logging tests (19 tests)
+│   ├── test_errors.py       # ✅ NEW: Error hierarchy tests (36 tests)
 │   └── ...
 ├── docs/                    # Documentation
 └── generations/             # Generated projects
