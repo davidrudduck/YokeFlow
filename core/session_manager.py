@@ -34,7 +34,7 @@ class PausedSessionManager:
         message_count: int = 0
     ) -> str:
         """
-        Pause a session and save its state.
+        Pause a session and save its state to database.
 
         Args:
             session_id: UUID of the session
@@ -51,6 +51,7 @@ class PausedSessionManager:
         # Gather intervention stats if available
         blocker_info = {}
         retry_stats = {}
+        error_messages = []
 
         if intervention_manager:
             summary = intervention_manager.get_summary()
@@ -58,11 +59,27 @@ class PausedSessionManager:
             blockers = summary.get("blockers", [])
             if blockers:
                 blocker_info = blockers[-1] if isinstance(blockers, list) else blockers
+                # Extract error messages from blockers
+                error_messages = [b.get("message", "") for b in blockers if b.get("message")]
 
-        # TODO: Implement database storage when paused_sessions table is created
-        # For now, generate a dummy ID and log the pause
-        import uuid
-        paused_session_id = str(uuid.uuid4())
+        # Extract task info
+        current_task_id = current_task.get("id") if current_task else None
+        current_task_description = current_task.get("description") if current_task else None
+
+        # Save to database
+        async with DatabaseManager() as db:
+            paused_session_id = await db.pause_session(
+                session_id=UUID(session_id),
+                project_id=UUID(project_id),
+                reason=reason,
+                pause_type=pause_type,
+                blocker_info=blocker_info,
+                retry_stats=retry_stats,
+                current_task_id=current_task_id,
+                current_task_description=current_task_description,
+                message_count=message_count,
+                error_messages=error_messages if error_messages else None
+            )
 
         print(f"[INTERVENTION] Session paused - ID: {paused_session_id}")
         print(f"  Reason: {reason}")
@@ -70,7 +87,7 @@ class PausedSessionManager:
         if current_task:
             print(f"  Task: {current_task.get('description', 'Unknown')}")
 
-        return paused_session_id
+        return str(paused_session_id)
 
     async def resume_session(
         self,
@@ -79,7 +96,7 @@ class PausedSessionManager:
         resolution_notes: Optional[str] = None
     ) -> Dict:
         """
-        Resume a paused session.
+        Resume a paused session from database.
 
         Args:
             paused_session_id: UUID of the paused session
@@ -89,27 +106,60 @@ class PausedSessionManager:
         Returns:
             Session information for resuming
         """
-        # TODO: Implement database operations when paused_sessions table is created
-        # For now, return a mock resume context
         print(f"[INTERVENTION] Attempting to resume session - ID: {paused_session_id}")
         print(f"  Resolved by: {resolved_by}")
         if resolution_notes:
             print(f"  Notes: {resolution_notes}")
 
-        # Return mock context - in real implementation, this would come from database
-        mock_context = {
-            "session_id": paused_session_id,
-            "project_id": "mock-project-id",
-            "project_name": "Mock Project",
-            "project_path": "/tmp/mock-project",
-            "current_task_id": None,
-            "current_task_description": "Mock task",
-            "pause_reason": "Test pause reason",
-            "resolution_notes": resolution_notes,
-            "resume_prompt": "Session resumed after intervention."
-        }
+        async with DatabaseManager() as db:
+            # Get the paused session details before resuming
+            paused_session = await db.get_paused_session(UUID(paused_session_id))
 
-        return mock_context
+            if not paused_session:
+                raise ValueError(f"Paused session not found: {paused_session_id}")
+
+            if paused_session.get("resolved"):
+                raise ValueError(f"Session already resolved: {paused_session_id}")
+
+            # Get project details
+            project = await db.get_project(paused_session["project_id"])
+            if not project:
+                raise ValueError(f"Project not found: {paused_session['project_id']}")
+
+            # Generate resume prompt
+            resume_prompt = self._generate_resume_prompt(paused_session, resolution_notes)
+
+            # Set resume information
+            await db.set_pause_resume_prompt(
+                paused_session_id=UUID(paused_session_id),
+                resume_prompt=resume_prompt,
+                can_auto_resume=False,  # Require manual resume for safety
+                resume_context={"resolved_by": resolved_by, "resolution_notes": resolution_notes}
+            )
+
+            # Mark as resumed in database
+            success = await db.resume_session(
+                paused_session_id=UUID(paused_session_id),
+                resolved_by=resolved_by,
+                resolution_notes=resolution_notes
+            )
+
+            if not success:
+                raise RuntimeError(f"Failed to resume session: {paused_session_id}")
+
+        # Return context for resuming
+        return {
+            "session_id": str(paused_session["session_id"]),
+            "project_id": str(paused_session["project_id"]),
+            "project_name": project.get("name", "Unknown"),
+            "project_path": project.get("local_path", ""),
+            "current_task_id": paused_session.get("current_task_id"),
+            "current_task_description": paused_session.get("current_task_description"),
+            "pause_reason": paused_session.get("pause_reason"),
+            "pause_type": paused_session.get("pause_type"),
+            "resolution_notes": resolution_notes,
+            "resume_prompt": resume_prompt
+        }
 
     def _generate_resume_prompt(
         self,
@@ -146,17 +196,17 @@ class PausedSessionManager:
 
     async def get_active_pauses(self, project_id: Optional[str] = None) -> List[Dict]:
         """
-        Get all active (unresolved) paused sessions.
+        Get all active (unresolved) paused sessions from database.
 
         Args:
             project_id: Optional project ID to filter by
 
         Returns:
-            List of active paused sessions
+            List of active paused sessions with project info
         """
-        # TODO: Implement when paused_sessions table is created
-        # For now, return empty list to prevent errors
-        return []
+        async with DatabaseManager() as db:
+            project_uuid = UUID(project_id) if project_id else None
+            return await db.get_active_pauses(project_id=project_uuid)
 
     async def get_intervention_history(
         self,
@@ -164,32 +214,52 @@ class PausedSessionManager:
         limit: int = 50
     ) -> List[Dict]:
         """
-        Get history of resolved interventions.
+        Get history of resolved interventions from database.
 
         Args:
             project_id: Optional project ID to filter by
             limit: Maximum number of records to return
 
         Returns:
-            List of resolved interventions
+            List of resolved interventions with resolution details
         """
-        # TODO: Implement when paused_sessions table is created
-        # For now, return empty list to prevent errors
-        return []
+        async with DatabaseManager() as db:
+            project_uuid = UUID(project_id) if project_id else None
+            return await db.get_intervention_history(project_id=project_uuid, limit=limit)
 
     async def _log_action(
         self,
         paused_session_id: str,
         action_type: str,
         action_status: str,
-        action_details: Dict
+        action_details: Dict,
+        result_message: Optional[str] = None,
+        error_message: Optional[str] = None
     ):
-        """Log an intervention action."""
-        # TODO: Implement when intervention_actions table is created
-        # For now, just log to console
+        """
+        Log an intervention action to database.
+
+        Args:
+            paused_session_id: UUID of the paused session
+            action_type: Type of action
+            action_status: Status of action
+            action_details: Details about the action
+            result_message: Optional result message
+            error_message: Optional error message
+        """
         print(f"[INTERVENTION ACTION] {action_type}: {action_status}")
         if action_details:
             print(f"  Details: {action_details}")
+
+        async with DatabaseManager() as db:
+            await db.log_intervention_action(
+                paused_session_id=UUID(paused_session_id),
+                action_type=action_type,
+                action_status=action_status,
+                action_details=action_details,
+                result_message=result_message,
+                error_message=error_message
+            )
 
     async def can_auto_resume(self, paused_session_id: str) -> bool:
         """
@@ -202,15 +272,10 @@ class PausedSessionManager:
             True if can auto-resume
         """
         async with DatabaseManager() as db:
-            query = """
-                SELECT can_auto_resume
-                FROM paused_sessions
-                WHERE id = %s::UUID
-                AND resolved = FALSE
-            """
-
-            result = await db.fetch_one(query, paused_session_id)
-            return result[0] if result else False
+            paused_session = await db.get_paused_session(UUID(paused_session_id))
+            if not paused_session or paused_session.get("resolved"):
+                return False
+            return paused_session.get("can_auto_resume", False)
 
 
 class AutoRecoveryManager:
